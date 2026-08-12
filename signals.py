@@ -1,9 +1,9 @@
 import requests
 import pandas as pd
-import pandas_ta as ta
+from ta.momentum import RSIIndicator
+from ta.trend import MACD
 
 def get_klines_df(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 100) -> pd.DataFrame:
-    """Получает свечи с Binance API."""
     url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
     response = requests.get(url, timeout=10)
     data = response.json()
@@ -24,44 +24,39 @@ def get_klines_df(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 10
     return df
 
 def find_trade_setup(symbol: str = "BTCUSDT") -> dict | None:
-    """
-    Анализирует рынок и возвращает сигнал ТОЛЬКО если есть подходящая формация.
-    Если качественного сетапа нет — возвращает None.
-    """
     try:
         df = get_klines_df(symbol=symbol, interval="1h", limit=100)
         if df.empty:
             return None
         
-        # Расчет показателей
-        df['RSI'] = ta.rsi(df['close'], length=14)
-        macd = ta.macd(df['close'], fast=12, slow=26, signal=9)
-        df = pd.concat([df, macd], axis=1)
+        # Расчет RSI
+        rsi_ind = RSIIndicator(close=df['close'], window=14)
+        df['RSI'] = rsi_ind.rsi()
+        
+        # Расчет MACD
+        macd_ind = MACD(close=df['close'], window_slow=26, window_fast=12, window_sign=9)
+        df['MACD_hist'] = macd_ind.macd_diff()
         
         latest = df.iloc[-1]
         price = round(latest['close'], 2)
-        rsi = round(latest['RSI_14'], 2)
-        macd_hist = round(latest['MACDh_12_26_9'], 2)
+        rsi = round(latest['RSI'], 2)
+        macd_hist = round(latest['MACD_hist'], 2)
         
         action = None
         formation = ""
         
-        # --- ПОИСК ФОРМАЦИИ И ВХОДА ---
-        # Формация 1: Бычий разворот (Перепроданность + пересечение MACD вверх)
         if rsi <= 35 and macd_hist > 0:
             action = "LONG 🟢"
             formation = "Бычий разворот (RSI перепродан + подтверждение MACD)"
             stop_loss = round(price * 0.985, 2)
             take_profit = round(price * 1.03, 2)
             
-        # Формация 2: Медвежий разворот (Перекупленность + пересечение MACD вниз)
         elif rsi >= 65 and macd_hist < 0:
             action = "SHORT 🔴"
             formation = "Медвежий разворот (RSI перекуплен + подтверждение MACD)"
             stop_loss = round(price * 1.015, 2)
             take_profit = round(price * 0.97, 2)
 
-        # Если формации нет — сигнал не создаем
         if not action:
             return None
 
