@@ -1,4 +1,4 @@
-import requests
+ import requests
 import pandas as pd
 from ta.momentum import RSIIndicator
 from ta.trend import MACD
@@ -29,11 +29,11 @@ def find_trade_setup(symbol: str = "BTCUSDT") -> dict | None:
         if df.empty:
             return None
         
-        # Расчет RSI
+        # Расчет RSI через библиотеку ta
         rsi_ind = RSIIndicator(close=df['close'], window=14)
         df['RSI'] = rsi_ind.rsi()
         
-        # Расчет MACD
+        # Расчет MACD через библиотеку ta
         macd_ind = MACD(close=df['close'], window_slow=26, window_fast=12, window_sign=9)
         df['MACD_hist'] = macd_ind.macd_diff()
         
